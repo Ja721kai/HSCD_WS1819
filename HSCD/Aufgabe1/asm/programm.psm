@@ -94,16 +94,14 @@ COMM:
 		COMPARE IOR, 01		  ; Prüfen ob COM_Port == 1
 		JUMP Z, CHECK_IDLE_STATE ; Prüfe ob Programm idle ist -> idle bleiben
 		JUMP NZ, PROCESS_BIT  ; Eingehendes Bit verarbeiten
-		RETURN
 
 ; --------------------------------------------------------------------------------------------
 
 CHECK_IDLE_STATE:
-
 		COMPARE IDLE_STATE, 01
 		JUMP NZ, PROCESS_BIT
 		AND COUNTER, 00 ; Falls wir im idle state sind muss der Counter immer auf 0 sein bzw. zurückgesetzt werden
-		RETURNI ENABLE 	; ISR beenden falls Zustand idle ist
+		RETURN 	; ISR beenden falls Zustand idle ist
 
 ; --------------------------------------------------------------------------------------------
 
@@ -193,7 +191,7 @@ ENDROUTINE:
 
 WRITE_BACK:
 		COMPARE WRITE, 01
-		RETURN C
+		RETURN NZ
 		COMPARE WRITE_MODE, 01
 		JUMP C, WRITE_STARTBIT
 		JUMP Z, WRITE_DATABIT
@@ -202,9 +200,6 @@ WRITE_BACK:
 ; --------------------------------------------------------------------------------------------
 
 WRITE_STARTBIT:
-		ADD COUNTERW, 01
-		COMPARE COUNTERW, 08
-		RETURN C
 		AND IOR, 00
 		OUTPUT IOR, COM_Port
 		OR WRITE_MODE, 01
@@ -238,6 +233,7 @@ WRITE_ONE:
 WRITE_STOPBIT:
 		AND WRITTEN_BITS, 00
 		AND WRITE_MODE, 00
+		AND WRITE, 00
 		OR IOR, 01
 		OUTPUT IOR, COM_Port
 		RETURN
@@ -257,3 +253,4 @@ ISR:    CALL    BNT0LED0
 ; Interrupt-Vektor
         ADDRESS 3FF
         JUMP ISR
+
