@@ -1,5 +1,5 @@
 
-        CONSTANT IO_Port,  00
+		CONSTANT IO_Port,  00
         CONSTANT LED0,     01
         CONSTANT LED1,     02
         CONSTANT BNT0,     04
@@ -7,6 +7,13 @@
         CONSTANT COM_Port, 01
         CONSTANT TXD,      01
         CONSTANT RXD,      01
+		
+		CONSTANT BEGINZAHL,		30 ; ASCII Zeichen 0
+		CONSTANT ENDZAHL,		3A ; ASCII Zeichen 9 + 1
+		CONSTANT BEGINGROSS,	41 ; ASCII Zeichen A
+		CONSTANT ENDGROSS,		5B ; ASCII Zeichen Z + 1
+		CONSTANT BEGINKLEIN,	61 ; ASCII Zeichen a
+		CONSTANT ENDKLEIN,  	7B ; ASCII Zeichen z + 1
 
 ; Register Mapping
 ; alle acht Register s0 bis s7 stehen der ISR zur Verfuegung
@@ -20,6 +27,11 @@
 		NAMEREG s6, READ_MODE
 		NAMEREG s7, SAVED_BITS
 		NAMEREG s8, DATA
+		NAMEREG s9, WRITE
+		NAMEREG sA, DATAW
+		NAMEREG sB, COUNTERW
+		NAMEREG sC, WRITE_MODE
+		NAMEREG sD, WRITTEN_BITS
 
 ; alle acht Register s8 bis sF stehen der Main-Funktion zur Verfuegung
 
@@ -33,6 +45,12 @@ start:  AND    CNTH, 00   ; Initialisierung der Zaehlers ...
 		AND	   READ_MODE, 00 ; initial Modus zur Startbiterkennung
 		AND    SAVED_BITS, 00 ; initial keine Bits eingelesen
 		AND    DATA, 00
+		AND    COUNTER, 00
+		AND    WRITE, 00
+		AND    DATAW, 00
+		AND    COUNTERW, 00
+		AND    WRITE_MODE, 00
+		AND    WRITTEN_BITS, 00
         ENABLE INTERRUPT
 loop:   ; do nothing
         JUMP loop
@@ -70,12 +88,6 @@ BLINK0: RETURN
 ; ueber das serielle Ausgangssignal TXD ausgibt
 ;
 ; in dieser Version ist eine einfache Echo-Funktion implementiert
-	CONSTANT BEGINZAHL,		30
-	CONSTANT ENDZAHL,		39
-	CONSTANT BEGINGROSS,	41
-	CONSTANT ENDGROSS,		5A
-	CONSTANT BEGINKLEIN,	61
-	CONSTANT ENDKLEINKLEIN,	7A
 
 COMM:   
         INPUT  IOR,  COM_Port ; COM-Port einlesen
@@ -97,7 +109,7 @@ CHECK_IDLE_STATE:
 
 PROCESS_BIT:
 		COMPARE READ_MODE, 01 ; Prüfe ob Startbiterkennung (0) oder Datenübernahme (1)
-		JUMP Z, DATENÜBERNAHME
+		JUMP Z, DATENUEBERNAHME
 		JUMP NZ, STARTBITERKENNUNG
 
 ; --------------------------------------------------------------------------------------------
@@ -106,7 +118,7 @@ STARTBITERKENNUNG:
 		ADD COUNTER, 01 ; Counter inkrementieren
 		COMPARE COUNTER, 08 ; Überprüfe ob 8 Takte vergangen sind
 		JUMP Z, ENTER_DATATRANSFER
-		RETURNI ENABLE ; ISR beenden falls Counter noch nicht 8 erreicht hat
+		RETURN ; ISR beenden falls Counter noch nicht 8 erreicht hat
 
 ; --------------------------------------------------------------------------------------------
 
@@ -114,38 +126,130 @@ ENTER_DATATRANSFER:
 		AND IDLE_STATE, 00 ; Programm wird nicht mehr als idle betrachtet
 		OR READ_MODE, 01 ; Nun können wir anfangen Bits zu lesen
 		AND COUNTER, 00 ; Setze Counter zurück, sodass wir diesen später auf 16 zählen können
-		RETURNI ENABLE ; Startbit muss nicht in Datenregister zurückgeschrieben werden, da es sowieso eine 0 ist
+		RETURN ; Startbit muss nicht in Datenregister zurückgeschrieben werden, da es sowieso eine 0 ist
 		
 ; --------------------------------------------------------------------------------------------
 
-DATENÜBERNAHME:
+DATENUEBERNAHME:
 		ADD COUNTER, 01 ; Counter inkrementieren
-		COMPARE COUNTER, 16 ; Prüfe ob 16 Takte vergangen sind
+		COMPARE COUNTER, 10 ; Prüfe ob 16 Takte vergangen sind
 		JUMP Z, SAVE_DATA_BIT
-		RETURNI ENABLE ; ISR beenden falls Counter noch nicht 16 erreicht hat
+		RETURN ; ISR beenden falls Counter noch nicht 16 erreicht hat
 		
 ; --------------------------------------------------------------------------------------------
 
 SAVE_DATA_BIT:
+		AND COUNTER, 00
 		COMPARE SAVED_BITS, 08 ; Schauen ob alle Datenbits schon da sind
-		JUMP Z, CHECK_STOP_BIT ; TODO
-		; TODO 
-		TODO
+		JUMP Z, CHECK_STOP_BIT
+		SL0 DATA ; Platz schaffen für neues Bit
+		OR DATA, IOR ; Bit eintragen in Datenspeicher
+		ADD	SAVED_BITS, 01
+		RETURN
 		
 		
 ; --------------------------------------------------------------------------------------------
 
-WRITE_BACK:
-		OUTPUT IOR,  COM_Port ; TXD ausgeben
-		RETURN
+CHECK_STOP_BIT:
+		COMPARE IOR, 01  ; Prüfe ob Stopbit 1 vorliegt
+		JUMP Z, CHECK_DATA ; 
+		JUMP ENDROUTINE  ; Setze alle Zustände zurück auf Startzustand
+
+; --------------------------------------------------------------------------------------------
+
+CHECK_DATA:
+		COMPARE DATA, BEGINZAHL ; Prüfe ob kleiner als ASCII 0
+		JUMP C, ENDROUTINE  ; Beende Programm bei Sonderzeichen
+		COMPARE DATA, ENDZAHL  ; Falls Carry -> Ziffer zwischen 0 und 9
+		JUMP C, SET_WRITE_BACK	; Zahl auf TX schreiben
+		COMPARE DATA, BEGINGROSS ; Prüfe ob kleiner als ASCII A
+		JUMP C, ENDROUTINE
+		COMPARE DATA, ENDGROSS 
+		JUMP C, SET_WRITE_BACK
+		COMPARE DATA, BEGINKLEIN ; Prüfe ob kleiner als ASCII a 
+		JUMP C, ENDROUTINE
+		COMPARE DATA, ENDKLEIN
+		JUMP C, SET_WRITE_BACK
+
+; --------------------------------------------------------------------------------------------
+
+SET_WRITE_BACK:
+		OR WRITE, 01
+		AND DATAW, 00
+		OR DATAW, DATA
+		JUMP ENDROUTINE
 		
 ; --------------------------------------------------------------------------------------------
+
+ENDROUTINE:
+		AND DATA, 00	; Falls Stopbit nicht vorliegt..
+		AND COUNTER, 00  ; setze alles auf Startzustand
+		AND SAVED_BITS, 00
+		AND READ_MODE, 00
+		OR IDLE_STATE, 01
+		RETURN 
+
+; --------------------------------------------------------------------------------------------
+
+WRITE_BACK:
+		COMPARE WRITE, 01
+		RETURN C
+		COMPARE WRITE_MODE, 01
+		JUMP C, WRITE_STARTBIT
+		JUMP Z, WRITE_DATABIT
+		RETURN
+
+; --------------------------------------------------------------------------------------------
+
+WRITE_STARTBIT:
+		ADD COUNTERW, 01
+		COMPARE COUNTERW, 08
+		RETURN C
+		AND IOR, 00
+		OUTPUT IOR, COM_Port
+		OR WRITE_MODE, 01
+		RETURN
+
+; --------------------------------------------------------------------------------------------
         
+WRITE_DATABIT:
+		ADD COUNTERW, 01
+		COMPARE COUNTERW, 10
+		RETURN C
+		AND COUNTERW, 00
+		COMPARE WRITTEN_BITS, 08
+		JUMP Z, WRITE_STOPBIT
+		ADD WRITTEN_BITS, 01
+		SL0 DATAW
+		JUMP C, WRITE_ONE
+		AND IOR, 00
+		OUTPUT IOR, COM_Port
+		RETURN
+
+; --------------------------------------------------------------------------------------------
+
+WRITE_ONE:
+		OR IOR, 01
+		OUTPUT IOR, COM_Port
+		RETURN
+
+; --------------------------------------------------------------------------------------------
+
+WRITE_STOPBIT:
+		AND WRITTEN_BITS, 00
+		AND WRITE_MODE, 00
+		OR IOR, 01
+		OUTPUT IOR, COM_Port
+		RETURN
+
+; --------------------------------------------------------------------------------------------
+		
         ADDRESS 300
 ; Interrupt-Service-Routine
 ISR:    CALL    BNT0LED0
         CALL    BLINK
         CALL    COMM
+		CALL 	WRITE_BACK
         RETURNI ENABLE
 
 ; --------------------------------------------------------------------------------------------
