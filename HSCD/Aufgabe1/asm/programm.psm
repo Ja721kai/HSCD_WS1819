@@ -140,8 +140,8 @@ SAVE_DATA_BIT:
 		AND COUNTER, 00
 		COMPARE SAVED_BITS, 08 ; Schauen ob alle Datenbits schon da sind
 		JUMP Z, CHECK_STOP_BIT
-		SL0 DATA ; Platz schaffen für neues Bit
 		OR DATA, IOR ; Bit eintragen in Datenspeicher
+		RR DATA ; Platz schaffen für neues Bit
 		ADD	SAVED_BITS, 01
 		RETURN
 		
@@ -168,6 +168,7 @@ CHECK_DATA:
 		JUMP C, ENDROUTINE
 		COMPARE DATA, ENDKLEIN
 		JUMP C, SET_WRITE_BACK
+		JUMP ENDROUTINE
 
 ; --------------------------------------------------------------------------------------------
 
@@ -215,17 +216,8 @@ WRITE_DATABIT:
 		COMPARE WRITTEN_BITS, 08
 		JUMP Z, WRITE_STOPBIT
 		ADD WRITTEN_BITS, 01
-		SL0 DATAW
-		JUMP C, WRITE_ONE
-		AND IOR, 00
-		OUTPUT IOR, COM_Port
-		RETURN
-
-; --------------------------------------------------------------------------------------------
-
-WRITE_ONE:
-		OR IOR, 01
-		OUTPUT IOR, COM_Port
+		OUTPUT DATAW, COM_Port
+		SR0 DATAW
 		RETURN
 
 ; --------------------------------------------------------------------------------------------
