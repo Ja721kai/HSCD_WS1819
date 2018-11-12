@@ -112,6 +112,7 @@ FLANK_DETECTION:
 		RETURN Z            ; Beende Einlesen
 		; Ansonsten muss IOR bereits 0 sein -> nur noch 7 Takte abzählen
 		LOAD R_STATE, 22          ; Rotiere nach links von 11 nach 22
+		RETURN
 
 ; --------------------- Zustand 22 : Startbitvalidierung ----------------------------
 		
@@ -144,13 +145,14 @@ DATENUEBERNAHME:
 		OR DATA, IOR 		; Bit eintragen in Datenspeicher
 		RR DATA				; Platz schaffen für nächstes Bit
 		LOAD COUNTER, SIXTEEN ; Counter wieder zurücksetzen für nächstes Bit
-		; Wenn 8 Bits erreich wurden, Übergang nach Zustand 88
+		; Wenn 8 Bits erreicht wurden, Übergang nach Zustand 88
 		SUB DATA_COUNT, 01  ; Dekrementieren von acht bis null
 		JUMP Z, ENTER_STOP_DETECTION
+		RETURN
 		
 ENTER_STOP_DETECTION:
 		LOAD R_STATE, 88      ; Zustandsübergang von 44 auf 88
-		LOAD DATA_COUNT, 08   ; Zähler für Anzahl Bits wieder zurücksetzen
+		LOAD DATA_COUNT, EIGHT   ; Zähler für Anzahl Bits wieder zurücksetzen
 		RETURN
 		
 ; --------------------- Zustand 88 : Stopbit erkennen -----------------------------
@@ -164,23 +166,25 @@ CHECK_STOP_BIT:
 		
 		; Sonst müssen alle Daten verworfen und wieder in den Startzustand übergegangen werden
 		LOAD R_STATE, 11	; Übergang von 88 auf 11
+		LOAD COUNTER, SEVEN ; Counter für Startbiterkennung
 		AND DATA, 00		; Gespeicherte Bits flushen
 		RETURN
 
+; Geprüft wird - wenn möglich - immer nach dem größeren Zahlenintervall um Takte zu optimieren
 CHECK_DATA:
-		COMPARE DATA, BEGINZAHL 		; Prüfe ob kleiner als ASCII 0
-		JUMP C, READ_RESET  					
-		COMPARE DATA, ENDZAHL  			; Prüfe ob zwischen 0 und 9
-		JUMP C, ENDABLE_WRITE_AND_RESET	
-		COMPARE DATA, BEGINGROSS 		; Prüfe ob kleiner als ASCII A
+		COMPARE DATA, ENDKLEIN         ; Schauen ob wir größer als z sind
+		JUMP NC, READ_RESET
+		COMPARE DATA, BEGINZAHL		   ; Schauen ob wir kleiner als 0 sind
 		JUMP C, READ_RESET
-		COMPARE DATA, ENDGROSS 			; Prüfe ob zwischen A und Z
-		JUMP C, ENDABLE_WRITE_AND_RESET
-		COMPARE DATA, BEGINKLEIN 		; Prüfe ob kleiner als ASCII a 
-		JUMP C, READ_RESET
-		COMPARE DATA, ENDKLEIN			; Prüfe ob zwischen a und z
-		JUMP C, ENDABLE_WRITE_AND_RESET
-		JUMP READ_RESET
+		COMPARE DATA, BEGINKLEIN       ; Schauen ob Kleinbuchstabe vorliegt
+		JUMP NC, ENDABLE_WRITE_AND_RESET
+		COMPARE DATA, ENDGROSS         ; Schauen ob zwischen Z und a
+		JUMP NC, READ_RESET
+		COMPARE DATA, BEGINGROSS       ; Schauen ob Großbuchstabe vorliegt
+		JUMP NC, ENDABLE_WRITE_AND_RESET
+		COMPARE DATA, ENDZAHL          ; Schauen ob Zahl oder Sonderzeichen
+		JUMP C, ENDABLE_WRITE_AND_RESET   ; Zahl liegt vor
+		JUMP READ_RESET				   ; Sonderzeichen zwischen 9 und A liegt vor
 
 ; Hier darf nun auf den TXD geschrieben werden, der Lesemodus und die Daten werden dabei zurückgesetzt
 ENDABLE_WRITE_AND_RESET:
