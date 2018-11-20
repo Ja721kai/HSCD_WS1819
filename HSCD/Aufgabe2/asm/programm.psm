@@ -1,0 +1,267 @@
+
+		CONSTANT IO_Port,  00
+        CONSTANT LED0,     01
+        CONSTANT LED1,     02
+        CONSTANT BNT0,     04
+        
+        CONSTANT COM_Port, 01
+        CONSTANT TXD,      01
+        CONSTANT RXD,      01
+		
+		CONSTANT BEGINZAHL,		30 ; ASCII Zeichen 0
+		CONSTANT ENDZAHL,		3A ; ASCII Zeichen 9 + 1
+		CONSTANT BEGINGROSS,	41 ; ASCII Zeichen A
+		CONSTANT ENDGROSS,		5B ; ASCII Zeichen Z + 1
+		CONSTANT BEGINKLEIN,	61 ; ASCII Zeichen a
+		CONSTANT ENDKLEIN,  	7B ; ASCII Zeichen z + 1
+		
+		CONSTANT SEVEN,    07
+		CONSTANT EIGHT,    08
+		CONSTANT SIXTEEN,  10
+
+; Register Mapping
+; alle acht Register s0 bis s7 stehen der ISR zur Verfuegung
+        NAMEREG s0, IOR
+        NAMEREG s1, TMP
+        NAMEREG s2, CNTH
+        NAMEREG s3, CNTL
+		
+		NAMEREG s4, COUNTER
+		NAMEREG s5, COUNTERW
+		NAMEREG s6, DATA
+		NAMEREG s7, DATAW
+		NAMEREG s8, WRITE
+		NAMEREG s9, DATA_COUNT
+		NAMEREG sA, DATAW_COUNT
+		
+		NAMEREG sB, R_STATE
+		NAMEREG sC, W_STATE
+
+; alle acht Register s8 bis sF stehen der Main-Funktion zur Verfuegung
+
+; --------------------------------------------------------------------------------------------
+
+        ADDRESS 000
+; Hauptfunktion
+start:  AND    CNTH, 00   ; Initialisierung der Zaehlers ...
+        AND    CNTL, 00   ; in der ISR
+			
+		LOAD   R_STATE, 11
+		LOAD   COUNTER, SEVEN 		; Bei der Startbiterkennung 7 weitere Takte abzählen nach Erkennen des Bits (06 bis 00)
+		LOAD   DATA_COUNT, EIGHT	; Zählt runter bis 0 um zu ermitteln, ob Datenregister voll ist
+		AND    DATA, 00		; Register um Daten zu speichern
+		
+		LOAD   COUNTERW, SIXTEEN	; Zählt Takte runter um Datenbits zu schreiben
+		AND    WRITE, 00			; Schreiberlaubnis
+		
+        ENABLE INTERRUPT
+loop:   ; do nothing
+        JUMP loop
+
+; --------------------------------------------------------------------------------------------
+ 
+; Subroutine, die den Zustand des Buttons BTN0 auf die Leuchtdiode LED0 durchschaltet
+BNT0LED0:
+        INPUT  IOR,  IO_Port ; IO-Port einlesen
+        INPUT  TMP,  IO_Port ; IO-Port einlesen
+        AND    TMP,  BNT0    ; Zustand von BNT0 ermitteln
+        SR0    TMP           ; auf die Position ...
+        SR0    TMP           ; ... von LED0 verschieben
+        AND    IOR,  LED1    ; Zustand von LED1 ermitteln
+        OR     IOR,  TMP     ; LED1 mit BNT0 konkatinieren
+        OUTPUT IOR,  IO_Port ; den neuen Wert ueber IO-Port ausgeben 
+        RETURN
+
+; --------------------------------------------------------------------------------------------
+
+; Subroutine, die die Leuchtdione LED1 mit ca. 1 Hz blinken laesst
+BLINK:  ADD    CNTL, 01      ; den 16-Bit-Zaehler ... 
+        ADDCY  CNTH, 00      ; .. inkrementieren
+        JUMP   NC,   BLINK0  ; kein Ueberlauf -> exit, sonst
+        INPUT  IOR,  IO_Port ; IO-Port einlesen
+        XOR    IOR,  LED1    ; LED1 toggeln
+        OUTPUT IOR,  IO_Port ; den neuen Wert ueber IO-Port ausgeben 
+BLINK0: RETURN
+
+; --------------------------------------------------------------------------------------------
+
+; Subroutine, die Daten ueber das serielle Eingangssignal RXD abtastet,
+; zu einem Byte zusammensetzt, entschidet, ob das empfangene Byte
+; ein Buchstabe oder eine Ziffer ist, und ggf. das Byte seriell
+; ueber das serielle Ausgangssignal TXD ausgibt
+
+; ------------------- Zustandsautomat zum Festlegen des Lesezustandes ------------------------
+
+COMM_IN:
+		; Die Zustände sind zirkulär angeordnet und im Regelfall über eine 1-Bit Rotation erreichbar
+		COMPARE R_STATE, 44
+		JUMP Z, DATENUEBERNAHME			; Abspeichern der Datenbits und Übergang auf 88
+		COMPARE R_STATE, 22
+		JUMP Z, STARTBITVALIDIERUNG		; Wenn das Startbit 8 Takte vorliegt geht man in Zustand 44 über
+		COMPARE R_STATE, 11
+		JUMP Z, FLANK_DETECTION			; Liegt eine Abwärtsflanke vor, so geht man in Zustand 22 über
+		COMPARE R_STATE, 88
+		JUMP Z, CHECK_STOP_BIT			; Erkennen des Stopbits und Übergang auf 11
+
+; ----------------------- Zustand 11 : Flankenerkennung -----------------------------
+
+; Sobald im Zustand 11 eine Abwärtsflanke erkannt wird liegt das Startbit vor
+FLANK_DETECTION:
+		INPUT IOR, COM_Port ; COM_Port einlesen
+		COMPARE IOR, 01     ; Falls IOR 1 ist, also kein Startbit
+		RETURN Z            ; Beende Einlesen
+		; Ansonsten muss IOR bereits 0 sein -> nur noch 7 Takte abzählen
+		LOAD R_STATE, 22          ; Rotiere nach links von 11 nach 22
+		RETURN
+
+; --------------------- Zustand 22 : Startbitvalidierung ----------------------------
+		
+; Hier werden nach Erkennung des Starbits 7 Takte abgezählt (insgesamt 8 mit Erkennung)
+STARTBITVALIDIERUNG:
+		SUB COUNTER, 01 	; Dekrementieren von acht bis null
+		RETURN NZ       	; Beenden sobald keine 8 Takte erreicht wurden
+		INPUT IOR, COM_Port ; Nun muss Bit eingelesen und nochmals auf 0 geprüft werden (Rauschprävention)
+		COMPARE IOR, 01     ; IOR darf hier nicht 1 sein, sonst liegt ein Fehler vor -> Reset
+		JUMP NZ, ENTER_DATATRANSFER
+		
+; Falls ein Rauschen vorliegt muss alles zurückgesetzt werden:
+		LOAD R_STATE, 11         ; Von 22 auf 11 zurück
+		LOAD COUNTER, SEVEN      ; Zähler zurücksetzen
+		RETURN
+
+ENTER_DATATRANSFER:
+		LOAD COUNTER, SIXTEEN ; Setze Counter zurück, sodass wir diesen später auf 16 zählen können
+		LOAD R_STATE, 44	  ; Zustandsübergang von 22 auf 44
+		RETURN ; Startbit muss nicht in Datenregister zurückgeschrieben werden, da es sowieso eine 0 ist
+		
+; --------------------- Zustand 44 : Datenbits einlesen -----------------------------
+		
+; Nach Ablauf von 16 Takten Bit einlesen und abspeichern
+DATENUEBERNAHME:
+		SUB COUNTER, 01 	; Dekrementieren von sechzehn bis null
+		RETURN NZ
+		INPUT IOR, COM_Port ; Zunächst muss das Bit eingelesen werden
+		
+		OR DATA, IOR 		; Bit eintragen in Datenspeicher
+		RR DATA				; Platz schaffen für nächstes Bit
+		LOAD COUNTER, SIXTEEN ; Counter wieder zurücksetzen für nächstes Bit
+		; Wenn 8 Bits erreicht wurden, Übergang nach Zustand 88
+		SUB DATA_COUNT, 01  ; Dekrementieren von acht bis null
+		JUMP Z, ENTER_STOP_DETECTION
+		RETURN
+		
+ENTER_STOP_DETECTION:
+		LOAD R_STATE, 88      ; Zustandsübergang von 44 auf 88
+		LOAD DATA_COUNT, EIGHT   ; Zähler für Anzahl Bits wieder zurücksetzen
+		RETURN
+		
+; --------------------- Zustand 88 : Stopbit erkennen -----------------------------
+
+CHECK_STOP_BIT:
+		SUB COUNTER, 01 	; Counter wieder 16 Takte runterzählen
+		RETURN NZ
+		INPUT IOR, COM_Port ; Bit einlesen
+		COMPARE IOR, 01		; Schauen ob Stopbit vorliegt
+		JUMP Z, CHECK_DATA  ; Stopbit liegt vor, Überprüfung des ASCII Zeichens
+		
+		; Sonst müssen alle Daten verworfen und wieder in den Startzustand übergegangen werden
+		LOAD R_STATE, 11	; Übergang von 88 auf 11
+		LOAD COUNTER, SEVEN ; Counter für Startbiterkennung
+		AND DATA, 00		; Gespeicherte Bits flushen
+		RETURN
+
+; Geprüft wird - wenn möglich - immer nach dem größeren Zahlenintervall um Takte zu optimieren
+CHECK_DATA:
+		COMPARE DATA, ENDKLEIN         ; Schauen ob wir größer als z sind
+		JUMP NC, READ_RESET
+		COMPARE DATA, BEGINZAHL		   ; Schauen ob wir kleiner als 0 sind
+		JUMP C, READ_RESET
+		COMPARE DATA, BEGINKLEIN       ; Schauen ob Kleinbuchstabe vorliegt
+		JUMP NC, ENDABLE_WRITE_AND_RESET
+		COMPARE DATA, ENDGROSS         ; Schauen ob zwischen Z und a
+		JUMP NC, READ_RESET
+		COMPARE DATA, BEGINGROSS       ; Schauen ob Großbuchstabe vorliegt
+		JUMP NC, ENDABLE_WRITE_AND_RESET
+		COMPARE DATA, ENDZAHL          ; Schauen ob Zahl oder Sonderzeichen
+		JUMP C, ENDABLE_WRITE_AND_RESET   ; Zahl liegt vor
+		JUMP READ_RESET				   ; Sonderzeichen zwischen 9 und A liegt vor
+
+; Hier darf nun auf den TXD geschrieben werden, der Lesemodus und die Daten werden dabei zurückgesetzt
+ENDABLE_WRITE_AND_RESET:
+		LOAD WRITE, 01				; erlaubt das Schreiben auf den TXD
+		LOAD DATAW, DATA			; Kopiere Byte, da DATA zurückgesetzt wird
+		LOAD W_STATE, 11			; Zustand um Startbit zu schreiben
+		LOAD COUNTERW, SIXTEEN
+		LOAD DATAW_COUNT, EIGHT	; Zählt Anzahl Bits, die bereits geschrieben wurden
+		JUMP READ_RESET
+
+; Verwerfe eingelesenes Zeichen
+READ_RESET:
+		AND DATA, 00		; Falls Stopbit nicht vorliegt..
+		LOAD COUNTER, SEVEN  ; setze alles auf Startzustand
+		LOAD R_STATE, 11
+		RETURN 
+
+; --------------------------------------------------------------------------------------------
+
+
+; ------------------- Zustandsautomat zum Festlegen des Lesezustandes ------------------------
+
+COMM_OUT:
+		COMPARE WRITE, 01
+		RETURN NZ						; Schreiben nicht erlaubt wenn WRITE 0 ist
+		COMPARE W_STATE, 22
+		JUMP Z, WRITE_DATABIT			; Schreiben des Datenbits
+		COMPARE W_STATE, 11
+		JUMP Z, WRITE_STARTBIT			; Startbit schreiben
+		COMPARE W_STATE, 44
+		JUMP Z, WRITE_STOPBIT			; Stopbit schreiben und Schreibprozess beenden
+
+; --------------------------- Zustand 11 : Startbit schreiben --------------------------------
+		
+WRITE_STARTBIT:
+		AND IOR, 00
+		OUTPUT IOR, COM_Port
+		LOAD W_STATE, 22
+		RETURN
+
+; --------------------------- Zustand 22 : Datenbit schreiben ---------------------------------
+        
+WRITE_DATABIT:
+		SUB COUNTERW, 01			; Dekrementieren von sechzehn auf null
+		RETURN NZ
+		OR COUNTERW, SIXTEEN    ; Wieder auf sechzehn setzen
+		
+		OUTPUT DATAW, COM_Port  ; LSB auf COM_Port schreiben
+		SR0 DATAW				; LSB flushen
+		SUB DATAW_COUNT, 01		; Falls DATAW_COUNT 0 ist wurden 8 bits geschrieben
+		RETURN NZ
+		; Ansonsten muss als nächstes Stopbit gesetzt werden
+		LOAD W_STATE, 44		; Übergang von 22 auf 44
+		
+; --------------------------- Zustand 44 : Stopbit schreiben --------------------------------
+
+WRITE_STOPBIT:
+		SUB COUNTERW, 01
+		RETURN NZ
+		
+		OR IOR, 01
+		OUTPUT IOR, COM_Port	; Stopbit schreiben
+		AND WRITE, 00			; Es darf nun nicht mehr geschrieben werden
+		RETURN
+
+; --------------------------------------------------------------------------------------------
+		
+        ADDRESS 300
+; Interrupt-Service-Routine
+ISR:    CALL    BNT0LED0
+        CALL    BLINK
+        CALL    COMM_IN
+		CALL 	COMM_OUT
+        RETURNI ENABLE
+
+; --------------------------------------------------------------------------------------------
+
+; Interrupt-Vektor
+        ADDRESS 3FF
+        JUMP ISR
