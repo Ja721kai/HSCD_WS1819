@@ -178,17 +178,22 @@ CHECK_STOP_BIT:
 CHECK_DATA:
 		COMPARE DATA, ENDKLEIN         ; Schauen ob wir größer als z sind
 		JUMP NC, READ_RESET
-		COMPARE DATA, BEGINZAHL		   ; Schauen ob wir kleiner als 0 sind
+		COMPARE DATA, BEGINGROSS
+		JUMP NC, BUCHSTABE
+		
+		; Wir haben Ziffer vorliegen
+		COMPARE DATA, BEGINZAHL
 		JUMP C, READ_RESET
-		COMPARE DATA, BEGINKLEIN       ; Schauen ob Kleinbuchstabe vorliegt
+		COMPARE DATA, ENDZAHL
+		JUMP C, WRITE_TO_RAM
+		JUMP READ_RESET
+		
+BUCHSTABE:
+		COMPARE DATA, ENDGROSS
+		JUMP C, WRITE_TO_RAM
+		COMPARE DATA, BEGINKLEIN
 		JUMP NC, WRITE_TO_RAM
-		COMPARE DATA, ENDGROSS         ; Schauen ob zwischen Z und a
-		JUMP NC, READ_RESET
-		COMPARE DATA, BEGINGROSS       ; Schauen ob Großbuchstabe vorliegt
-		JUMP NC, WRITE_TO_RAM
-		COMPARE DATA, ENDZAHL          ; Schauen ob Zahl oder Sonderzeichen
-		JUMP C, WRITE_TO_RAM           ; Zahl liegt vor
-		JUMP READ_RESET				   ; Sonderzeichen zwischen 9 und A liegt vor
+		JUMP READ_RESET
 
 ; Zeichen ist valide, kann also auf RAM geschrieben werden
 WRITE_TO_RAM:
