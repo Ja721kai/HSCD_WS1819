@@ -8,8 +8,8 @@
         CONSTANT TXD,      01
         CONSTANT RXD,      01
 		
-		CONSTANT RAM_ADR   02
-		CONSTANT RAM_DATA  04
+		CONSTANT RAM_ADR,  02
+		CONSTANT RAM_DATA, 04
 		
 		CONSTANT BEGINZAHL,		30 ; ASCII Zeichen 0
 		CONSTANT ENDZAHL,		3A ; ASCII Zeichen 9 + 1
@@ -39,7 +39,7 @@
 		
 		NAMEREG s9, DATABLOCK_COUNTER  ; Größe des Datenblocks
 		NAMEREG sA, ADR_W			; Adresspointer zum Schreiben auf RAM-Block
-		NAMEREG sB, ADR_R           ; Adresspointer zum Lesen von RAM-Block
+		NAMEREG sB, ADR_R           ; Adresspointer zum Lesen von RAM-Block ADR
 
 ; alle acht Register s8 bis sF stehen der Main-Funktion zur Verfuegung
 
@@ -197,8 +197,8 @@ BUCHSTABE:
 
 ; Zeichen ist valide, kann also auf RAM geschrieben werden
 WRITE_TO_RAM:
-		OUTPUT ADR, RAM_ADR
-		ADD ADR, ONE
+		OUTPUT ADR_R, RAM_ADR
+		ADD ADR_R, ONE
 		OUTPUT DATA, RAM_DATA ; Schreibe Zeichen in Datenregister an Adresse von ADR
 		JUMP READ_RESET
 
