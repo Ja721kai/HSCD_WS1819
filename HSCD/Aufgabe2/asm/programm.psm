@@ -40,7 +40,7 @@
 		
 		NAMEREG s9, DATABLOCK_COUNTER  ; Größe des Datenblocks
 		NAMEREG sA, ADR_W			; Adresspointer zum Schreiben auf RAM-Block
-		NAMEREG sB, ADR_R           ; Adresspointer zum Lesen von RAM-Block
+		NAMEREG sB, ADR_R           ; Adresspointer zum Lesen von RAM-Block ADR
 
 ; alle acht Register s8 bis sF stehen der Main-Funktion zur Verfuegung
 
