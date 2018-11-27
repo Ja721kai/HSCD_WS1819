@@ -8,8 +8,8 @@
         CONSTANT TXD,      01
         CONSTANT RXD,      01
 		
-		CONSTANT RAM_ADR   02
-		CONSTANT RAM_DATA  04
+		CONSTANT RAM_ADR,  02
+		CONSTANT RAM_DATA, 04
 		
 		CONSTANT BEGINZAHL,		30 ; ASCII Zeichen 0
 		CONSTANT ENDZAHL,		3A ; ASCII Zeichen 9 + 1
@@ -22,6 +22,7 @@
 		CONSTANT ONE,	   01
 		CONSTANT SEVEN,    07
 		CONSTANT EIGHT,    08
+		CONSTANT FIVETEEN, 0F
 		CONSTANT SIXTEEN,  10
 
 ; Register Mapping
@@ -53,6 +54,7 @@ start:  AND    CNTH, 00   ; Initialisierung der Zaehlers ...
 		LOAD   STATE, 11
 		LOAD   WRITE, 00  ; Schreiberlaubnis
 		LOAD   ADR_W, 00  ; Zeiger auf RAM-Block Adresse 00
+		LOAD   ADR_R, 00  ; Zeiger auf RAM-Block Adresse 00
 		
 		LOAD   DATABLOCK_COUNTER, SIXTEEN
 		
@@ -104,8 +106,7 @@ COMM_IN:
 		JUMP Z, CHECK_STOP_BIT			; Erkennen des Stopbits und Übergang auf 11
 		COMPARE STATE, 22
 		JUMP Z, STARTBITVALIDIERUNG		; Wenn das Startbit 8 Takte vorliegt geht man in Zustand 44 über
-		COMPARE STATE, 11
-		JUMP Z, FLANK_DETECTION			; Liegt eine Abwärtsflanke vor, so geht man in Zustand 22 über
+		JUMP FLANK_DETECTION			; Liegt eine Abwärtsflanke vor, so geht man in Zustand 22 über
 		
 
 ; ----------------------- Zustand 11 : Flankenerkennung -----------------------------
@@ -176,7 +177,7 @@ CHECK_STOP_BIT:
 
 ; Geprüft wird - wenn möglich - immer nach dem größeren Zahlenintervall um Takte zu optimieren
 CHECK_DATA:
-		COMPARE DATA, ENDKLEIN         ; Schauen ob wir größer als z sind
+		COMPARE DATA, ENDKLEIN         
 		JUMP NC, READ_RESET
 		COMPARE DATA, BEGINGROSS
 		JUMP NC, BUCHSTABE
@@ -197,8 +198,8 @@ BUCHSTABE:
 
 ; Zeichen ist valide, kann also auf RAM geschrieben werden
 WRITE_TO_RAM:
-		OUTPUT ADR, RAM_ADR
-		ADD ADR, ONE
+		OUTPUT ADR_R, RAM_ADR
+		ADD ADR_R, ONE
 		OUTPUT DATA, RAM_DATA ; Schreibe Zeichen in Datenregister an Adresse von ADR
 		JUMP READ_RESET
 
@@ -207,7 +208,6 @@ READ_RESET:
 		LOAD STATE, 11
 		SUB DATABLOCK_COUNTER, 01 ; Anzahl der noch zu lesenden ASCII-Zeichen reduzieren
 		RETURN NZ
-		LOAD ADR_R, ZERO ; Pointer zum Auslesen aus RAM auf 0 setzen
 		LOAD WRITE, ONE
 		RETURN
 
@@ -220,18 +220,19 @@ COMM_OUT:
 		JUMP Z, WRITE_DATABIT			; Schreiben des Datenbits
 		COMPARE STATE, 44
 		JUMP Z, WRITE_STOPBIT			; Stopbit schreiben und Schreibprozess beenden
-		COMPARE STATE, 11
-		JUMP Z, WRITE_STARTBIT			; Startbit schreiben
+		COMPARE STATE, 00
+		JUMP Z, IDLE
+		JUMP WRITE_STARTBIT			; Startbit schreiben
 
 ; --------------------------- Zustand 11 : Startbit schreiben --------------------------------
 WRITE_STARTBIT:
 		AND IOR, 00
 		OUTPUT IOR, COM_Port
 		LOAD COUNTER, SIXTEEN
-		LOAD DATA_COUNTER, EIGHT
+		LOAD DATA_COUNT, EIGHT
 		; ---- Byte aus RAM Lesen ----------
-		OUTPUT ADR_R, RAM_ADR
-		ADD ADR_R, 01
+		OUTPUT ADR_W, RAM_ADR
+		ADD ADR_W, 01
 		INPUT DATA, RAM_DATA
 		; ----------------------------------
 		LOAD STATE, 22
@@ -250,6 +251,7 @@ WRITE_DATABIT:
 		RETURN NZ
 		; Ansonsten muss als nächstes Stopbit gesetzt werden
 		LOAD STATE, 44		    ; Übergang von 22 auf 44
+		RETURN
 		
 ; --------------------------- Zustand 44 : Stopbit schreiben --------------------------------
 
@@ -259,15 +261,26 @@ WRITE_STOPBIT:
 		
 		LOAD IOR, 01
 		OUTPUT IOR, COM_Port	; Stopbit schreiben
+		
+		LOAD COUNTER, FIVETEEN
+		LOAD STATE, 00
 
 ; Semaphor wieder auf 0, falls Datenblock aus RAM gelesen wurde
 		COMPARE ADR_W, ADR_R
 		RETURN NZ
 		LOAD WRITE, ZERO
-		LOAD ADR_W, ZERO
 		LOAD DATABLOCK_COUNTER, SIXTEEN
+		LOAD STATE, 11
 		RETURN
 
+; --------------------------- Zustand 00 : IDLE für 15 Takte ---------------------------------
+		
+IDLE:
+		SUB COUNTER, 01
+		RETURN NZ
+		LOAD STATE, 11
+		RETURN
+		
 ; --------------------------------------------------------------------------------------------
 		
         ADDRESS 300
