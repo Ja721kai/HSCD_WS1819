@@ -97,18 +97,16 @@ BLINK0: RETURN
 
 COMM_IN:
 		; Die Zustände sind zirkulär angeordnet und im Regelfall über eine 1-Bit Rotation erreichbar
-		COMPARE WRITE, 00				
-		JUMP NZ, COMM_OUT						; Lesen nicht erlaubt wenn WRITE = 1, daher Sprung zum Schreiben
+		COMPARE WRITE, 00
+		JUMP NZ, COMM_OUT				; Lesen nicht erlaubt wenn WRITE = 1, daher Sprung zum Schreiben
 		COMPARE STATE, 44
 		JUMP Z, DATENUEBERNAHME			; Abspeichern der Datenbits und Übergang auf 88
 		COMPARE STATE, 88
 		JUMP Z, CHECK_STOP_BIT			; Erkennen des Stopbits und Übergang auf 11
 		COMPARE STATE, 22
 		JUMP Z, STARTBITVALIDIERUNG		; Wenn das Startbit 8 Takte vorliegt geht man in Zustand 44 über
-		JUMP FLANK_DETECTION			; Liegt eine Abwärtsflanke vor, so geht man in Zustand 22 über
-		
 
-; ----------------------- Zustand 11 : Flankenerkennung -----------------------------
+; ----------------------- Zustand ELSE : Flankenerkennung -----------------------------
 
 ; Sobald im Zustand 11 eine Abwärtsflanke erkannt wird liegt das Startbit vor
 FLANK_DETECTION:
@@ -211,9 +209,8 @@ COMM_OUT:
 		JUMP Z, WRITE_DATABIT			; Schreiben des Datenbits
 		COMPARE STATE, 44
 		JUMP Z, WRITE_STOPBIT			; Stopbit schreiben und Schreibprozess beenden
-		JUMP WRITE_STARTBIT			; Startbit schreiben
 
-; --------------------------- Zustand 11 : Startbit schreiben --------------------------------
+; --------------------------- Zustand ELSE : Startbit schreiben --------------------------------
 WRITE_STARTBIT:
 		SUB COUNTER, ONE
 		RETURN NZ
@@ -255,14 +252,13 @@ WRITE_STOPBIT:
 		OUTPUT IOR, COM_Port	; Stopbit schreiben
 		
 		LOAD COUNTER, SIXTEEN
-		LOAD STATE, 00
+		LOAD STATE, 11
 
 ; Semaphor wieder auf 0, falls Datenblock aus RAM gelesen wurde
 		COMPARE ADR_W, ADR_R
 		RETURN NZ
 		LOAD WRITE, ZERO
 		LOAD DATABLOCK_COUNTER, SIXTEEN
-		LOAD STATE, 11
 		RETURN
 		
 ; --------------------------------------------------------------------------------------------
