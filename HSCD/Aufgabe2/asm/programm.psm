@@ -40,6 +40,8 @@
 		NAMEREG s9, DATABLOCK_COUNTER  ; Größe des Datenblocks
 		NAMEREG sA, ADR_W			; Adresspointer zum Schreiben auf RAM-Block
 		NAMEREG sB, ADR_R           ; Adresspointer zum Lesen von RAM-Block
+		NAMEREG sC, Startbit
+		NAMEREG SD, Stopbit
 
 ; alle acht Register s8 bis sF stehen der Main-Funktion zur Verfuegung
 
@@ -54,6 +56,8 @@ start:  AND    CNTH, 00   ; Initialisierung der Zaehlers ...
 		LOAD   WRITE, 00  ; Schreiberlaubnis
 		LOAD   ADR_W, 00  ; Zeiger auf RAM-Block Adresse 00
 		LOAD   ADR_R, 00  ; Zeiger auf RAM-Block Adresse 00
+		LOAD   Startbit, 00
+		LOAD   Stopbit, 01
 		
 		LOAD   DATABLOCK_COUNTER, SIXTEEN
 		
@@ -126,18 +130,17 @@ STARTBITVALIDIERUNG:
 		RETURN NZ       	; Beenden sobald keine 8 Takte erreicht wurden
 		INPUT IOR, COM_Port ; Nun muss Bit eingelesen und nochmals auf 0 geprüft werden (Rauschprävention)
 		COMPARE IOR, 01     ; IOR darf hier nicht 1 sein, sonst liegt ein Fehler vor -> Reset
-		JUMP NZ, ENTER_DATATRANSFER
-		
-; Falls ein Rauschen vorliegt auf Zustand 11 zurückgesetzt werden:
-		LOAD STATE, 11         ; Von 22 auf 11 zurück
-		RETURN
-
-ENTER_DATATRANSFER:
+		JUMP Z, RAUSCHEN
 		LOAD DATA, 00
 		LOAD COUNTER, SIXTEEN ; Setze Counter zurück, sodass wir diesen später auf 16 zählen können
 		LOAD DATA_COUNT, EIGHT ; Counter um 8 Bits zu zählen bis Zeichen vollständig eingelesen ist
 		LOAD STATE, 44	  ; Zustandsübergang von 22 auf 44
 		RETURN ; Startbit muss nicht in Datenregister zurückgeschrieben werden, da es sowieso eine 0 ist
+		
+; Falls ein Rauschen vorliegt auf Zustand 11 zurückgesetzt werden:
+RAUSCHEN:
+		LOAD STATE, 11         ; Von 22 auf 11 zurück
+		RETURN
 		
 ; --------------------- Zustand 44 : Datenbits einlesen -----------------------------
 		
@@ -166,13 +169,7 @@ CHECK_STOP_BIT:
 		RETURN NZ
 		INPUT IOR, COM_Port ; Bit einlesen
 		COMPARE IOR, 01		; Schauen ob Stopbit vorliegt
-		JUMP Z, CHECK_DATA  ; Stopbit liegt vor, Überprüfung des ASCII Zeichens
-		
-		; Sonst müssen alle Daten verworfen und wieder in den Startzustand übergegangen werden
-		LOAD STATE, 11	; Übergang von 88 auf 11
-		RETURN
-
-CHECK_DATA:
+		JUMP NZ, RAUSCHEN  ; Stopbit liegt vor, Überprüfung des ASCII Zeichens
 		COMPARE DATA, BEGINZAHL
 		JUMP C, READ_RESET
 		COMPARE DATA, ENDZAHL
@@ -215,8 +212,7 @@ WRITE_STARTBIT:
 		SUB COUNTER, ONE
 		RETURN NZ
 
-		AND IOR, 00
-		OUTPUT IOR, COM_Port
+		OUTPUT Startbit, COM_Port
 		LOAD COUNTER, SIXTEEN
 		LOAD DATA_COUNT, EIGHT
 		; ---- Byte aus RAM Lesen ----------
@@ -248,8 +244,7 @@ WRITE_STOPBIT:
 		SUB COUNTER, 01
 		RETURN NZ
 		
-		LOAD IOR, 01
-		OUTPUT IOR, COM_Port	; Stopbit schreiben
+		OUTPUT Stopbit, COM_Port	; Stopbit schreiben
 		
 		LOAD COUNTER, SIXTEEN
 		LOAD STATE, 11
