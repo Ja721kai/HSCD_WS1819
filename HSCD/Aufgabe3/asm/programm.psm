@@ -8,8 +8,17 @@
         CONSTANT TXD,      01
         CONSTANT RXD,      01
 		
-		CONSTANT RAM_ADR,  02
-		CONSTANT RAM_DATA, 04
+		CONSTANT RAM_ADR,  02  ; Adressbits des RAM Bits 7-0
+		CONSTANT RAM_DATA, 04  ; Datenbits 7-0 des RAM 
+		
+		; Zusätzliche Schnittstellen für Aufgabe 3:
+		
+		CONSTANT STATUS_REG, 08  ; STRT Bit (Write) & DONE Bit (Read)
+		CONSTANT PTR,  09		 ; PTR Register Bits 7-0
+		CONSTANT PTR2, 0A		 ; PTR Register Bits 10-8
+		CONSTANT LEN,  0B		 ; LEN Register (8Bit) für Länge des Datenblocks
+		
+		; -----------------------------------------
 		
 		CONSTANT BEGINZAHL,		30 ; ASCII Zeichen 0
 		CONSTANT ENDZAHL,		3A ; ASCII Zeichen 9 + 1
@@ -41,7 +50,8 @@
 		NAMEREG sA, ADR_W			; Adresspointer zum Schreiben auf RAM-Block
 		NAMEREG sB, ADR_R           ; Adresspointer zum Lesen von RAM-Block
 		NAMEREG sC, Startbit
-		NAMEREG SD, Stopbit
+		NAMEREG sD, Stopbit
+		NAMEREG sE, LENGTH		; Zählt die Länge des validen Datenanteils
 
 ; alle acht Register s8 bis sF stehen der Main-Funktion zur Verfuegung
 
@@ -54,12 +64,14 @@ start:  AND    CNTH, 00   ; Initialisierung der Zaehlers ...
 			
 		LOAD   STATE, 11
 		LOAD   WRITE, 00  ; Schreiberlaubnis
-		LOAD   ADR_W, 00  ; Zeiger auf RAM-Block Adresse 00
-		LOAD   ADR_R, 00  ; Zeiger auf RAM-Block Adresse 00
+		LOAD   ADR_W, 00  ; Zeiger auf RAM-Block Adresse (00)00
+		LOAD   ADR_R, 00  ; Zeiger auf RAM-Block Adresse (00)00
 		LOAD   Startbit, 00
 		LOAD   Stopbit, 01
 		
-		LOAD   DATABLOCK_COUNTER, SIXTEEN
+		LOAD   DATABLOCK_COUNTER, FF  ; feste Größe 255
+		
+		OUTPUT ADR_W, PTR2  ; Bits 10-8 des PTR mit 00 initialisieren und unberührt lassen
 		
         ENABLE INTERRUPT
 loop:   ; do nothing
@@ -202,6 +214,11 @@ READ_RESET:
 ; ------------------- Zustandsautomat zum Festlegen des Lesezustandes ------------------------
 
 COMM_OUT:
+	;TODO: Wieder einkommentieren sobald über PuTTy läuft
+		;INPUT IOR, STATUS_REG	; Schauen ob Co-Prozessor DONE ist
+		;COMPARE IOR, ZERO
+		;RETURN Z
+		;OUTPUT STARTBIT, STATUS_REG  ; STARTBIT entspricht 00, setze somit Co-Prozessor STRT auf 0
 		COMPARE STATE, 22
 		JUMP Z, WRITE_DATABIT			; Schreiben des Datenbits
 		COMPARE STATE, 44
@@ -253,7 +270,9 @@ WRITE_STOPBIT:
 		COMPARE ADR_W, ADR_R
 		RETURN NZ
 		LOAD WRITE, ZERO
-		LOAD DATABLOCK_COUNTER, SIXTEEN
+		LOAD DATABLOCK_COUNTER, FF
+		LOAD ADR_W, ZERO
+		LOAD ADR_R, ZERO
 		RETURN
 		
 ; --------------------------------------------------------------------------------------------
