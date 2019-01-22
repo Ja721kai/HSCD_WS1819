@@ -51,7 +51,6 @@
 		NAMEREG sB, ADR_R           ; Adresspointer zum Lesen von RAM-Block
 		NAMEREG sC, Startbit
 		NAMEREG sD, Stopbit
-		NAMEREG sE, LENGTH		; Zählt die Länge des validen Datenanteils
 
 ; alle acht Register s8 bis sF stehen der Main-Funktion zur Verfuegung
 
@@ -209,16 +208,19 @@ READ_RESET:
 		RETURN NZ
 		LOAD WRITE, ONE
 		LOAD COUNTER, SIXTEEN
+		OUTPUT ADR_W, PTR 			; Startadresse setzen
+		OUTPUT ADR_R, LEN          ; Länge des Blocks mitgeben
+		OUTPUT Stopbit, STATUS_REG  ; Co-Prozessor starten
 		RETURN
 
 ; ------------------- Zustandsautomat zum Festlegen des Lesezustandes ------------------------
 
 COMM_OUT:
 	;TODO: Wieder einkommentieren sobald über PuTTy läuft
-		;INPUT IOR, STATUS_REG	; Schauen ob Co-Prozessor DONE ist
-		;COMPARE IOR, ZERO
-		;RETURN Z
-		;OUTPUT STARTBIT, STATUS_REG  ; STARTBIT entspricht 00, setze somit Co-Prozessor STRT auf 0
+		INPUT IOR, STATUS_REG	; Schauen ob Co-Prozessor DONE ist
+		COMPARE IOR, ZERO
+		RETURN Z
+		OUTPUT Startbit, STATUS_REG  ; STARTBIT entspricht 00, setze somit Co-Prozessor STRT auf 0
 		COMPARE STATE, 22
 		JUMP Z, WRITE_DATABIT			; Schreiben des Datenbits
 		COMPARE STATE, 44
