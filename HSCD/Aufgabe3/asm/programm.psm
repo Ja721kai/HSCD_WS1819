@@ -182,7 +182,8 @@ CHECK_STOP_BIT:
 		COMPARE IOR, 01		; Schauen ob Stopbit vorliegt
 		JUMP NZ, RAUSCHEN  ; Stopbit liegt vor, Überprüfung des ASCII Zeichens
 		
-		
+		COMPARE DATA, ENDKLEIN		   ; ob größer z
+		JUMP NC, READ_RESET			   
 		COMPARE DATA, BEGINZAHL		   ; Schauen ob wir kleiner als 0 sind
 		JUMP C, READ_RESET
 		COMPARE DATA, BEGINKLEIN       ; Schauen ob Kleinbuchstabe vorliegt
