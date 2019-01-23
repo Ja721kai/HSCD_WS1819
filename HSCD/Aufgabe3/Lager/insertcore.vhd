@@ -36,7 +36,7 @@ ARCHITECTURE verhalten OF insertcore IS
 BEGIN
 
 	done 	<= d;
-	ADR 	<= ofs;
+	ADR 	<= ptr + ofs;
 	j1    <= j + 1;
 	
 	reg: PROCESS(rst, clk) IS
@@ -58,7 +58,7 @@ BEGIN
 		END IF;
    	END PROCESS;
 
-	fsm: PROCESS(state, strt, len, i, j, d, m, tmp, dib) IS
+	fsm: PROCESS(state, strt, len, i, j, j1, d, m, tmp, dib) IS
 	BEGIN
 		state0 	<= state;
 		i0 		<= i;
@@ -77,6 +77,7 @@ BEGIN
 					d0			<= '0';
 					i0			<= "00000000001";
 					m0			<= len - 1;
+					--m0			<= "00010011";
 					state0	<=	S1;
 					ofs      <= "00000000001";
 					j0 		<= (OTHERS => '0');
