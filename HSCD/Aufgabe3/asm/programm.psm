@@ -181,19 +181,19 @@ CHECK_STOP_BIT:
 		INPUT IOR, COM_Port ; Bit einlesen
 		COMPARE IOR, 01		; Schauen ob Stopbit vorliegt
 		JUMP NZ, RAUSCHEN  ; Stopbit liegt vor, Überprüfung des ASCII Zeichens
-		COMPARE DATA, BEGINZAHL
+		
+		
+		COMPARE DATA, BEGINZAHL		   ; Schauen ob wir kleiner als 0 sind
 		JUMP C, READ_RESET
-		COMPARE DATA, ENDZAHL
-		JUMP C, WRITE_TO_RAM  ; Wir haben Ziffer vorliegen
-		
-		; Prüfe ob Groß-/Kleinbuchstabe
-		
-		OR DATA, 20  		  ; um 32 Dez erhöhen (3rd MSB auf 1 setzen bzw. auf 1 lassen) -> auf Kleinbuchstabe setzen
-		COMPARE DATA, ENDKLEIN 
-		JUMP NC, READ_RESET   ; Größer als Z
-		COMPARE DATA, BEGINKLEIN
-		JUMP C, READ_RESET ; kein Buchstabe
-		; Sonst Buchstabe -> write to RAM
+		COMPARE DATA, BEGINKLEIN       ; Schauen ob Kleinbuchstabe vorliegt
+		JUMP NC, WRITE_TO_RAM
+		COMPARE DATA, ENDGROSS         ; Schauen ob zwischen Z und a
+		JUMP NC, READ_RESET
+		COMPARE DATA, BEGINGROSS       ; Schauen ob Großbuchstabe vorliegt
+		JUMP NC, WRITE_TO_RAM
+		COMPARE DATA, ENDZAHL          ; Schauen ob Zahl oder Sonderzeichen
+		JUMP C, WRITE_TO_RAM           ; Zahl liegt vor
+		JUMP READ_RESET				   ; Sonderzeichen zwischen 9 und A liegt vor
 
 ; Zeichen ist valide, kann also auf RAM geschrieben werden
 WRITE_TO_RAM:
@@ -216,11 +216,12 @@ READ_RESET:
 ; ------------------- Zustandsautomat zum Festlegen des Lesezustandes ------------------------
 
 COMM_OUT:
-	;TODO: Wieder einkommentieren sobald über PuTTy läuft
+		; zyklisches Abprüfen der DONE Variable, STRT wird hierbei stets auf 00 gesetzt
 		INPUT IOR, STATUS_REG	; Schauen ob Co-Prozessor DONE ist
 		COMPARE IOR, ZERO
-		RETURN Z
 		OUTPUT Startbit, STATUS_REG  ; STARTBIT entspricht 00, setze somit Co-Prozessor STRT auf 0
+		; -------------------------------------
+		RETURN Z
 		COMPARE STATE, 22
 		JUMP Z, WRITE_DATABIT			; Schreiben des Datenbits
 		COMPARE STATE, 44
