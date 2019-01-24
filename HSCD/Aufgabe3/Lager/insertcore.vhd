@@ -29,7 +29,6 @@ ARCHITECTURE verhalten OF insertcore IS
 		SIGNAL d, d0:		std_logic;
 		SIGNAL i, i0, i1:		std_logic_vector(7 DOWNTO 0);
 		SIGNAL j, j0, j1: std_logic_vector(7 DOWNTO 0);
-		SIGNAL m, m0:		std_logic_vector(7 DOWNTO 0);
 		SIGNAL tmp, tmp0:	std_logic_vector(7 DOWNTO 0);
 		SIGNAL ofs:			std_logic_vector(7 DOWNTO 0);
 
@@ -46,25 +45,22 @@ BEGIN
 			state <= S0;
 			i		<= (OTHERS => '0');
 			j		<= (OTHERS => '0');
-			m		<= (OTHERS => '0');
 			tmp	<= (OTHERS => '0');
 			d		<= '0';
 		ELSIF rising_edge(clk) THEN
 			state <= state0;
 			i     <= i0;
 			j     <= j0;
-			m     <= m0;
 			tmp   <= tmp0;
 			d     <= d0;
 		END IF;
    	END PROCESS;
 
-	fsm: PROCESS(state, strt, len, i, j, j1, i1, d, m, tmp, dib) IS
+	fsm: PROCESS(state, strt, len, i, j, j1, i1, d, tmp, dib) IS
 	BEGIN
 		state0 	<= state;
 		i0 		<= i;
 		j0     <= j;
-		m0     <= m;
 		tmp0   <= tmp;
 		d0     <= d;
 
@@ -78,7 +74,6 @@ BEGIN
 				IF strt='1' THEN
 					d0			<= '0';
 					i0			<= "00000001";
-					m0			<= len - 1;
 					state0	<=	S1;
 					ofs      <= "00000001";
 					j0 		<= (OTHERS => '0');
@@ -87,13 +82,13 @@ BEGIN
 			-- Ausfuehrungszustand
 			WHEN S1 =>
 			
-				IF i > m THEN
-					d0 <= '1';
-					state0 <= S0;
-				ELSE
+				IF i < len THEN
 					tmp0 <= DIB;    -- key <= a(i)
 					ofs <= j;
 					state0 <= S2;
+				ELSE
+					d0 <= '1';
+					state0 <= S0;
 				END IF;
 				
 			-- Ausfuehrungszustand 2
