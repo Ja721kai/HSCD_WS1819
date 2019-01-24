@@ -23,11 +23,11 @@ END insertcore;
 
 ARCHITECTURE verhalten OF insertcore IS
 	-- Zustandsmaschine
-		type TState is (S0, S1, S2, S3, S4, S5);
+		type TState is (S0, S1, S2, S3, S4);
 		SIGNAL state, state0: TState;
 		
 		SIGNAL d, d0:		std_logic;
-		SIGNAL i, i0:		std_logic_vector(10 DOWNTO 0);
+		SIGNAL i, i0, i1:		std_logic_vector(10 DOWNTO 0);
 		SIGNAL j, j0, j1: std_logic_vector(10 DOWNTO 0);
 		SIGNAL m, m0:		std_logic_vector(7 DOWNTO 0);
 		SIGNAL tmp, tmp0:	std_logic_vector(7 DOWNTO 0);
@@ -38,6 +38,7 @@ BEGIN
 	done 	<= d;
 	ADR 	<= ptr + ofs;
 	j1    <= j + 1;
+	i1    <= i + 1;
 	
 	reg: PROCESS(rst, clk) IS
 	BEGIN
@@ -58,7 +59,7 @@ BEGIN
 		END IF;
    	END PROCESS;
 
-	fsm: PROCESS(state, strt, len, i, j, j1, d, m, tmp, dib) IS
+	fsm: PROCESS(state, strt, len, i, j, j1, i1, d, m, tmp, dib) IS
 	BEGIN
 		state0 	<= state;
 		i0 		<= i;
@@ -67,9 +68,10 @@ BEGIN
 		tmp0   <= tmp;
 		d0     <= d;
 
-		--ofs    <= i;   -- default (OTHERS => '0');
+		ofs    <= i;   -- default (OTHERS => '0');
 		WEB    <= '0';
 		ENB    <= '1';
+		DOB	 <= tmp;
 		CASE state IS
 		-- Initialisierungszustand
 			WHEN S0 =>
@@ -85,6 +87,7 @@ BEGIN
 			
 			-- Ausfuehrungszustand
 			WHEN S1 =>
+			
 				IF i > m THEN
 					d0 <= '1';
 					state0 <= S0;
@@ -96,11 +99,14 @@ BEGIN
 				
 			-- Ausfuehrungszustand 2
 			WHEN S2 =>
+				ofs <= j1;
 				IF DIB <= tmp THEN
+					WEB <= '1';
+					DOB <= tmp;    -- a(j+1) <= key
+					i0 <= i1;
 					state0 <= S4;
 				ELSE
 					WEB <= '1';
-					ofs <= j1;
 					DOB <= DIB;   -- a(j+1) := a(j)
 					j0 <= j - 1;
 					state0 <= S3;
@@ -109,6 +115,10 @@ BEGIN
 			-- Prüfe ob j out of bounds
 			WHEN S3 =>
 				IF j0 = "11111111111" THEN
+					ofs <= j1;
+					WEB <= '1';
+					DOB <= tmp;    -- a(j+1) <= key
+					i0 <= i1;
 					state0 <= S4;
 				ELSE
 					ofs <= j;
@@ -117,13 +127,6 @@ BEGIN
 
 			-- Ausfuehrungszustand 3
 			WHEN S4 =>
-				ofs <= j1;
-				WEB <= '1';
-				DOB <= tmp;    -- a(j+1) <= key
-				i0 <= i + 1;
-				state0 <= S5;
-				
-			WHEN S5 =>
 				ofs <= i;
 				j0 <= i - 1;
 				state0 <= S1;
