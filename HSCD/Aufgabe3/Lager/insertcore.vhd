@@ -27,11 +27,11 @@ ARCHITECTURE verhalten OF insertcore IS
 		SIGNAL state, state0: TState;
 		
 		SIGNAL d, d0:		std_logic;
-		SIGNAL i, i0, i1:		std_logic_vector(10 DOWNTO 0);
-		SIGNAL j, j0, j1: std_logic_vector(10 DOWNTO 0);
+		SIGNAL i, i0, i1:		std_logic_vector(7 DOWNTO 0);
+		SIGNAL j, j0, j1: std_logic_vector(7 DOWNTO 0);
 		SIGNAL m, m0:		std_logic_vector(7 DOWNTO 0);
 		SIGNAL tmp, tmp0:	std_logic_vector(7 DOWNTO 0);
-		SIGNAL ofs:			std_logic_vector(10 DOWNTO 0);
+		SIGNAL ofs:			std_logic_vector(7 DOWNTO 0);
 
 BEGIN
 
@@ -68,7 +68,7 @@ BEGIN
 		tmp0   <= tmp;
 		d0     <= d;
 
-		ofs    <= i;   -- default (OTHERS => '0');
+		ofs    <= i;
 		WEB    <= '0';
 		ENB    <= '1';
 		DOB	 <= tmp;
@@ -77,11 +77,10 @@ BEGIN
 			WHEN S0 =>
 				IF strt='1' THEN
 					d0			<= '0';
-					i0			<= "00000000001";
+					i0			<= "00000001";
 					m0			<= len - 1;
-					--m0			<= "00010011";
 					state0	<=	S1;
-					ofs      <= "00000000001";
+					ofs      <= "00000001";
 					j0 		<= (OTHERS => '0');
 				END IF;
 			
@@ -112,9 +111,9 @@ BEGIN
 					state0 <= S3;
 				END IF;
 
-			-- Prüfe ob j out of bounds
+			-- Pruefe ob j out of bounds
 			WHEN S3 =>
-				IF j0 = "11111111111" THEN
+				IF j0 = "11111111" THEN
 					ofs <= j1;
 					WEB <= '1';
 					DOB <= tmp;    -- a(j+1) <= key
