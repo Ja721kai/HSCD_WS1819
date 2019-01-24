@@ -27,8 +27,8 @@ ARCHITECTURE verhalten OF insertcore IS
 		SIGNAL state, state0: TState;
 		
 		SIGNAL d, d0:		std_logic;
-		SIGNAL i, i0, i1:		std_logic_vector(7 DOWNTO 0);
-		SIGNAL j, j0, j1: std_logic_vector(7 DOWNTO 0);
+		SIGNAL i, i0, i1, i2:		std_logic_vector(7 DOWNTO 0);
+		SIGNAL j, j0, j1, j2: std_logic_vector(7 DOWNTO 0);
 		SIGNAL tmp, tmp0:	std_logic_vector(7 DOWNTO 0);
 		SIGNAL ofs:			std_logic_vector(7 DOWNTO 0);
 
@@ -38,6 +38,8 @@ BEGIN
 	ADR 	<= ptr + ofs;
 	j1    <= j + 1;
 	i1    <= i + 1;
+	j2    <= j - 1;
+	i2    <= i - 1;
 	
 	reg: PROCESS(rst, clk) IS
 	BEGIN
@@ -56,7 +58,7 @@ BEGIN
 		END IF;
    	END PROCESS;
 
-	fsm: PROCESS(state, strt, len, i, j, j1, i1, d, tmp, dib) IS
+	fsm: PROCESS(state, strt, len, i, j, j1, j2, i1, i2, d, tmp, dib) IS
 	BEGIN
 		state0 	<= state;
 		i0 		<= i;
@@ -102,7 +104,7 @@ BEGIN
 				ELSE
 					WEB <= '1';
 					DOB <= DIB;   -- a(j+1) := a(j)
-					j0 <= j - 1;
+					j0 <= j2;
 					state0 <= S3;
 				END IF;
 
@@ -122,7 +124,7 @@ BEGIN
 			-- Ausfuehrungszustand 3
 			WHEN S4 =>
 				ofs <= i;
-				j0 <= i - 1;
+				j0 <= i2;
 				state0 <= S1;
 				
 		END CASE;
